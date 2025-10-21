@@ -1,0 +1,11 @@
+{
+  "name": "ffmpeg-merge-api",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo 'No build needed'"
+  },
+  "dependencies": {
+    "ffmpeg.wasm": "^0.12.10",
+    "node-fetch": "^3.3.2"
+  }
+}
