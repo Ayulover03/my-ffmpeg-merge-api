@@ -1,12 +1,8 @@
 // api/merge.js
-import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
-
-// 强制 fluent-ffmpeg 使用 ffmpeg-static 提供的二进制
-ffmpeg.setFfmpegPath(ffmpegStatic);
 
 const __dirname = new URL(import.meta.url).pathname.replace(/\/[^/]+$/, '');
 
@@ -34,14 +30,6 @@ const downloadFile = async (url, filepath) => {
   });
 };
 
-const cleanup = (files) => {
-  files.forEach((file) => {
-    try {
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    } catch (e) {}
-  });
-};
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -53,35 +41,44 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing video_url or audio_url' });
   }
 
-  const videoPath = path.join(INPUT_DIR, 'input.mp4');
-  const audioPath = path.join(INPUT_DIR, 'input.mp3');
-  const outputPath = path.join(OUTPUT_DIR, `final_${Date.now()}.mp4`);
+  const ffmpeg = createFFmpeg({
+    log: true,
+    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.6/dist/ffmpeg-core.js'
+  });
 
   try {
-    await downloadFile(video_url, videoPath);
-    await downloadFile(audio_url, audioPath);
+    const videoPath = 'input.mp4';
+    const audioPath = 'input.mp3';
+    const outputPath = 'output.mp4';
 
-    ffmpeg(videoPath)
-      .input(audioPath)
-      .output(outputPath)
-      .videoCodec('copy')
-      .audioCodec('aac')
-      .format('mp4')
-      .on('end', () => {
-        res.status(200).json({
-          message: "合并成功",
-          url: `/tmp/output/final_${Date.now()}.mp4`,
-          warning: "此文件仅在函数运行期间存在"
-        });
-      })
-      .on('error', (err) => {
-        console.error('FFmpeg error:', err);
-        res.status(500).json({ error: 'Processing failed', details: err.message });
-      })
-      .run();
+    // 下载文件到内存
+    await downloadFile(video_url, path.join(INPUT_DIR, videoPath));
+    await downloadFile(audio_url, path.join(INPUT_DIR, audioPath));
+
+    // 加载 FFmpeg
+    await ffmpeg.load();
+
+    // 写入文件到 FFmpeg 虚拟文件系统
+    ffmpeg.FS('writeFile', videoPath, await fetchFile(path.join(INPUT_DIR, videoPath)));
+    ffmpeg.FS('writeFile', audioPath, await fetchFile(path.join(INPUT_DIR, audioPath)));
+
+    // 执行合并命令
+    await ffmpeg.run('-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', outputPath);
+
+    // 读取输出文件
+    const data = ffmpeg.FS('readFile', outputPath);
+
+    // 返回 base64 或上传到 Blob（推荐）
+    res.status(200).json({
+      message: "合并成功",
+      url: `data:video/mp4;base64,${data.buffer.toString('base64')}`,
+      size: data.length
+    });
 
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Download or processing failed', details: error.message });
+    console.error('FFmpeg error:', error);
+    res.status(500).json({ error: 'Processing failed', details: error.message });
+  } finally {
+    ffmpeg.exit();
   }
 }
