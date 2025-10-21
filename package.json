@@ -5,7 +5,9 @@
     "build": "echo 'No build needed'"
   },
   "dependencies": {
-    "ffmpeg.js": "latest",
+    "fluent-ffmpeg": "^2.1.3",
+    "@ffmpeg/ffmpeg": "^0.0.10",
+    "@ffmpeg/fluent": "^0.0.8",
     "node-fetch": "^3.3.2"
   }
 }
