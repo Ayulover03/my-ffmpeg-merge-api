@@ -1,7 +1,7 @@
 {
   "name": "ffmpeg-merge-api",
   "version": "1.0.0",
-  "type": "module",  // 启用 ES 模块（避免 ESM 转换警告）
+  "type": "module",
   "scripts": {
     "build": "echo 'No build needed'"
   },
