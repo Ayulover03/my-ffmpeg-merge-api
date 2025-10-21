@@ -51,33 +51,36 @@ export default async function handler(req, res) {
     const audioPath = 'input.mp3';
     const outputPath = 'output.mp4';
 
-    // 下载文件到内存
-    await downloadFile(video_url, path.join(INPUT_DIR, videoPath));
-    await downloadFile(audio_url, path.join(INPUT_DIR, audioPath));
+    // 下载视频和音频到本地临时目录
+    const videoLocalPath = path.join(INPUT_DIR, videoPath);
+    const audioLocalPath = path.join(INPUT_DIR, audioPath);
+
+    await downloadFile(video_url, videoLocalPath);
+    await downloadFile(audio_url, audioLocalPath);
 
     // 加载 FFmpeg
     await ffmpeg.load();
 
     // 写入文件到 FFmpeg 虚拟文件系统
-    ffmpeg.FS('writeFile', videoPath, await fetchFile(path.join(INPUT_DIR, videoPath)));
-    ffmpeg.FS('writeFile', audioPath, await fetchFile(path.join(INPUT_DIR, audioPath)));
+    ffmpeg.FS('writeFile', videoPath, await fetchFile(videoLocalPath));
+    ffmpeg.FS('writeFile', audioPath, await fetchFile(audioLocalPath));
 
-    // 执行合并命令
+    // 执行合并：视频 + 音频 → 输出新视频
     await ffmpeg.run('-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', outputPath);
 
     // 读取输出文件
     const data = ffmpeg.FS('readFile', outputPath);
 
-    // 返回 base64 或上传到 Blob（推荐）
+    // 返回 base64 编码的视频（适合小文件测试）
     res.status(200).json({
       message: "合并成功",
-      url: `data:video/mp4;base64,${data.buffer.toString('base64')}`,
+      url: `data:video/mp4;base64,${Buffer.from(data.buffer).toString('base64')}`,
       size: data.length
     });
 
   } catch (error) {
     console.error('FFmpeg error:', error);
-    res.status(500).json({ error: 'Processing failed', details: error.message });
+    res.status(500).json({ error: '处理失败', details: error.message });
   } finally {
     ffmpeg.exit();
   }
