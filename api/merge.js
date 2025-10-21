@@ -1,5 +1,5 @@
 // api/merge.js
-import ffmpeg from 'ffmpeg-core';
+import ffmpeg from 'ffmpeg.wasm';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     await downloadFile(video_url, videoPath);
     await downloadFile(audio_url, audioPath);
 
-    // 使用 ffmpeg-core 合并
+    // 使用 ffmpeg.wasm 合并
     const result = await ffmpeg({
       input: videoPath,
       output: outputPath,
