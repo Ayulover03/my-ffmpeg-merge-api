@@ -5,7 +5,7 @@
     "build": "echo 'No build needed'"
   },
   "dependencies": {
-    "ffmpeg.wasm": "^0.13.0",
+    "ffmpeg.wasm": "^0.12.9",  // ✅ 使用已存在的版本
     "node-fetch": "^3.3.2"
   }
 }
