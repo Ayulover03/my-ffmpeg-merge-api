@@ -1,5 +1,6 @@
 // api/merge.js
-import ffmpeg from 'ffmpeg.wasm';
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -59,29 +60,29 @@ export default async function handler(req, res) {
     await downloadFile(video_url, videoPath);
     await downloadFile(audio_url, audioPath);
 
-    // 使用 ffmpeg.wasm 合并
-    const result = await ffmpeg({
-      input: videoPath,
-      output: outputPath,
-      args: [
-        '-i', audioPath,
-        '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-shortest'
-      ]
-    });
-
-    // 返回结果
-    res.status(200).json({
-      message: "合并成功",
-      url: outputPath,
-      warning: "此文件仅在函数运行期间存在，建议改用 Vercel Blob 存储"
-    });
+    // 使用 fluent-ffmpeg 合并
+    ffmpeg(videoPath)
+      .input(audioPath)
+      .output(outputPath)
+      .videoCodec('copy')         // 不转码视频，提升速度
+      .audioCodec('aac')          // 音频编码为 AAC
+      .format('mp4')
+      .on('end', () => {
+        // 返回结果
+        res.status(200).json({
+          message: "合并成功",
+          url: `/tmp/output/final_${Date.now()}.mp4`,
+          warning: "此文件仅在函数运行期间存在，建议改用 Vercel Blob 存储"
+        });
+      })
+      .on('error', (err) => {
+        console.error('FFmpeg error:', err);
+        res.status(500).json({ error: 'Processing failed', details: err.message });
+      })
+      .run();
 
   } catch (error) {
-    console.error('FFmpeg error:', error);
-    res.status(500).json({ error: 'Processing failed', details: error.message });
-  } finally {
-    cleanup([videoPath, audioPath, outputPath]);
+    console.error('Download error:', error);
+    res.status(500).json({ error: 'Download failed', details: error.message });
   }
 }
