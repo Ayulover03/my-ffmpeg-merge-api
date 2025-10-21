@@ -1,12 +1,14 @@
 // api/merge.js
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 
-const __filename = import.meta.url;
-const __dirname = path.dirname(__filename);
+// 强制 fluent-ffmpeg 使用 ffmpeg-static 提供的二进制
+ffmpeg.setFfmpegPath(ffmpegStatic);
+
+const __dirname = new URL(import.meta.url).pathname.replace(/\/[^/]+$/, '');
 
 const TMP_DIR = path.join(__dirname, '../tmp');
 const INPUT_DIR = path.join(TMP_DIR, 'input');
@@ -56,23 +58,20 @@ export default async function handler(req, res) {
   const outputPath = path.join(OUTPUT_DIR, `final_${Date.now()}.mp4`);
 
   try {
-    // 下载视频和音频
     await downloadFile(video_url, videoPath);
     await downloadFile(audio_url, audioPath);
 
-    // 使用 fluent-ffmpeg 合并
     ffmpeg(videoPath)
       .input(audioPath)
       .output(outputPath)
-      .videoCodec('copy')         // 不转码视频，提升速度
-      .audioCodec('aac')          // 音频编码为 AAC
+      .videoCodec('copy')
+      .audioCodec('aac')
       .format('mp4')
       .on('end', () => {
-        // 返回结果
         res.status(200).json({
           message: "合并成功",
           url: `/tmp/output/final_${Date.now()}.mp4`,
-          warning: "此文件仅在函数运行期间存在，建议改用 Vercel Blob 存储"
+          warning: "此文件仅在函数运行期间存在"
         });
       })
       .on('error', (err) => {
@@ -82,7 +81,7 @@ export default async function handler(req, res) {
       .run();
 
   } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ error: 'Download failed', details: error.message });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Download or processing failed', details: error.message });
   }
 }
